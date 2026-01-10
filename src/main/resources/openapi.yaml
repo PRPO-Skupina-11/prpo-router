@@ -1,0 +1,512 @@
+openapi: 3.0.3
+info:
+  title: Router Service API
+  version: 1.0.3
+  description: Internal API for routing decisions and provider/model configuration.
+
+servers:
+  # Added by API Auto Mocking Plugin
+  - description: SwaggerHub API Auto Mocking
+    url: https://virtserver.swaggerhub.com/uni-893/router/1.0.3
+  - url: /internal/router
+
+tags:
+  - name: Routing
+  - name: Providers
+
+components:
+  securitySchemes:
+    InternalServiceToken:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              example: ROUTER_ERROR
+            message:
+              type: string
+              example: Failed to route request.
+            details:
+              type: object
+              additionalProperties: true
+
+    Role:
+      type: string
+      enum: [user, assistant, system]
+
+    ContextMessage:
+      type: object
+      additionalProperties: false
+      required: [role, content]
+      properties:
+        role:
+          $ref: '#/components/schemas/Role'
+        content:
+          type: string
+
+    ModelOverrides:
+      type: object
+      additionalProperties: false
+      properties:
+        forceProviderId:
+          type: string
+          nullable: true
+          example: openai
+        forceModelId:
+          type: string
+          nullable: true
+          example: gpt-4.1
+
+    RouteRequest:
+      type: object
+      additionalProperties: false
+      required: [requestId, userId, conversationId, message, context]
+      properties:
+        requestId:
+          type: string
+          example: req_123
+        userId:
+          type: string
+          example: user_123
+        conversationId:
+          type: string
+          example: conv_1
+        message:
+          type: string
+          example: How does that work?
+        context:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContextMessage'
+        allowedProviders:
+          type: array
+          description: Providers user is allowed to use (computed by entry).
+          items:
+            type: string
+          nullable: true
+          example: [openai, anthropic]
+        allowedModels:
+          type: array
+          description: Models user is allowed to use (optional, if you want model-level entitlements).
+          items:
+            type: string
+          nullable: true
+          example: [gpt-4.1, claude-3.5-sonnet]
+        modelOverrides:
+          $ref: '#/components/schemas/ModelOverrides'
+        constraints:
+          type: object
+          additionalProperties: false
+          nullable: true
+          properties:
+            maxCost:
+              type: number
+              format: double
+              nullable: true
+              example: 0.05
+            currency:
+              type: string
+              nullable: true
+              example: EUR
+            maxLatencyMs:
+              type: integer
+              nullable: true
+              example: 2000
+            minContextTokens:
+              type: integer
+              nullable: true
+            requireJsonOutput:
+              type: boolean
+              nullable: true
+
+    RouteDecision:
+      type: object
+      additionalProperties: false
+      required: [providerId, modelId]
+      properties:
+        providerId:
+          type: string
+          example: openai
+        modelId:
+          type: string
+          example: gpt-4.1
+        reason:
+          type: string
+          nullable: true
+          example: "Lowest expected cost under latency constraint."
+        candidates:
+          type: array
+          nullable: true
+          items:
+            type: object
+            additionalProperties: true
+
+    ProviderUsage:
+      type: object
+      additionalProperties: false
+      properties:
+        promptTokens:
+          type: integer
+          nullable: true
+          example: 120
+        completionTokens:
+          type: integer
+          nullable: true
+          example: 200
+        totalTokens:
+          type: integer
+          nullable: true
+          example: 320
+
+    RouteResponse:
+      type: object
+      additionalProperties: false
+      required: [requestId, providerId, modelId, assistantContent]
+      properties:
+        requestId:
+          type: string
+          example: req_123
+        providerId:
+          type: string
+          example: openai
+        modelId:
+          type: string
+          example: gpt-4.1
+        assistantContent:
+          type: string
+          example: "You write your messages and they're automatically routed..."
+        finishReason:
+          type: string
+          nullable: true
+          example: stop
+        latencyMs:
+          type: integer
+          nullable: true
+          example: 900
+        usage:
+          $ref: '#/components/schemas/ProviderUsage'
+        estimatedCost:
+          type: number
+          format: double
+          nullable: true
+          example: 0.0123
+        currency:
+          type: string
+          nullable: true
+          example: EUR
+        decision:
+          $ref: '#/components/schemas/RouteDecision'
+
+    ModelInfo:
+      type: object
+      additionalProperties: false
+      required: [id, name, maxContextTokens]
+      properties:
+        id:
+          type: string
+          example: gpt-4.1
+        name:
+          type: string
+          example: GPT-4.1
+        maxContextTokens:
+          type: integer
+          example: 128000
+        pricePromptPer1k:
+          type: number
+          format: double
+          nullable: true
+          example: 0.005
+        priceCompletionPer1k:
+          type: number
+          format: double
+          nullable: true
+          example: 0.015
+        capabilities:
+          type: object
+          additionalProperties: true
+          nullable: true
+
+    ProviderInfo:
+      type: object
+      additionalProperties: false
+      required: [id, name, status, models]
+      properties:
+        id:
+          type: string
+          example: openai
+        name:
+          type: string
+          example: OpenAI
+        status:
+          type: string
+          enum: [ACTIVE, DISABLED]
+          example: ACTIVE
+        baseUrl:
+          type: string
+          nullable: true
+          example: https://api.openai.com/v1
+        models:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModelInfo'
+
+    ProvidersListResponse:
+      type: object
+      additionalProperties: false
+      required: [providers]
+      properties:
+        providers:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProviderInfo'
+
+    UpsertProviderRequest:
+      type: object
+      additionalProperties: false
+      required: [providerId, name, status, models]
+      properties:
+        providerId:
+          type: string
+          example: openai
+        name:
+          type: string
+          example: OpenAI
+        baseUrl:
+          type: string
+          nullable: true
+          example: https://api.openai.com/v1
+        status:
+          type: string
+          enum: [ACTIVE, DISABLED]
+          example: DISABLED
+        models:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [modelId, maxContextTokens]
+            properties:
+              modelId:
+                type: string
+                example: gpt-4.1
+              maxContextTokens:
+                type: integer
+                example: 128000
+              pricePromptPer1k:
+                type: number
+                format: double
+                nullable: true
+                example: 0.005
+              priceCompletionPer1k:
+                type: number
+                format: double
+                nullable: true
+                example: 0.015
+              capabilities:
+                type: object
+                additionalProperties: true
+                nullable: true
+
+    UpdateProviderRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        status:
+          type: string
+          enum: [ACTIVE, DISABLED]
+          example: ACTIVE
+        name:
+          type: string
+          nullable: true
+        baseUrl:
+          type: string
+          nullable: true
+
+    DeleteProviderRequest:
+      type: object
+      additionalProperties: false
+      required: [providerId, force]
+      properties:
+        providerId:
+          type: string
+          example: openai
+        force:
+          type: boolean
+          example: false
+
+security:
+  - InternalServiceToken: []
+
+paths:
+  /route:
+    post:
+      tags: [Routing]
+      summary: Make routing decision and call LLM
+      operationId: routeAndCall
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RouteRequest'
+      responses:
+        '200':
+          description: LLM response with routing metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized (missing/invalid internal token)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Provider error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /providers:
+    get:
+      tags: [Providers]
+      summary: List providers and models
+      operationId: listProviders
+      responses:
+        '200':
+          description: Provider catalog
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProvidersListResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      tags: [Providers]
+      summary: Add a new provider (and models)
+      operationId: addProvider
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertProviderRequest'
+      responses:
+        '201':
+          description: Provider created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderInfo'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /providers/{id}:
+    patch:
+      tags: [Providers]
+      summary: Update a provider
+      operationId: updateProvider
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProviderRequest'
+      responses:
+        '200':
+          description: Provider updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderInfo'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Provider not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      tags: [Providers]
+      summary: Remove a provider
+      operationId: deleteProvider
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteProviderRequest'
+      responses:
+        '200':
+          description: Provider removed
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [deleted]
+                properties:
+                  deleted:
+                    type: boolean
+                    example: true
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Provider not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
