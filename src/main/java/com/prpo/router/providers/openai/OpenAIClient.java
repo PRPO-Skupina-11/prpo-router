@@ -54,12 +54,23 @@ public class OpenAIClient implements ProviderClient {
         null
     );
 
-    ResponsesCreateResponse resp = webClient.post()
-        .uri("/responses")
-        .bodyValue(req)
-        .retrieve()
-        .bodyToMono(ResponsesCreateResponse.class)
-        .block();
+    ResponsesCreateResponse resp;
+    try {
+      resp = webClient.post()
+          .uri("/responses")
+          .bodyValue(req)
+          .retrieve()
+          .bodyToMono(ResponsesCreateResponse.class)
+          .block();
+    } catch (org.springframework.web.reactive.function.client.WebClientResponseException e) {
+      System.err.println("=== OPENAI ERROR ===");
+      System.err.println("status: " + e.getStatusCode());
+      System.err.println("body: " + e.getResponseBodyAsString());
+      System.err.println("====================");
+      throw e;
+    }
+
+
 
     String assistantText = extractAssistantText(resp);
 
