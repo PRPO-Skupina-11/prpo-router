@@ -101,11 +101,12 @@ public class RouteService {
     String modelIdStr = modelId != null ? modelId.value() : null;
 
     Double cost = computeCostEur(providerIdStr, modelIdStr, result.promptTokens(), result.completionTokens());
+    int approxChars = approxTotalChars(context, request.getMessage());
 
     RouteDecision decision = new RouteDecision()
         .providerId(providerIdStr)
         .modelId(modelId != null ? modelId.value() : null)
-        .reason("v1 heuristic: chars=" + selection.approxChars())
+        .reason("v1 heuristic: chars=" + approxChars)
         .candidates(null);
 
     RouteResponse response = new RouteResponse()
@@ -157,5 +158,20 @@ public class RouteService {
     double completionCost = (completionTokens / 1000.0) * price.completion().doubleValue();
     return promptCost + completionCost;
   }
+  
+  private int approxTotalChars(List<ChatTurn> context, String userMessage) {
+    int total = 0;
 
+    if (context != null) {
+      for (ChatTurn t : context) {
+        if (t == null) continue;
+        String c = t.content();
+        if (c != null) total += c.length();
+      }
+    }
+
+    if (userMessage != null) total += userMessage.length();
+
+    return total;
+  }
 }
